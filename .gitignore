@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Xcode
+## User settings
+xcuserdata/
+*.xcuserstate
+
+## Build products
+build/
+DerivedData/
+*.app
+
+## Swift Package Manager
+.build/
+.swiftpm/
+
+## Various settings that shouldn't be shared
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
