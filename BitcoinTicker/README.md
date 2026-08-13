@@ -4,6 +4,15 @@ A SwiftUI port of the Android `BitcoinTicker` app: a full-screen clock that also
 displays the current BTC/USD price, refreshed every 60 seconds with automatic
 fallback across 8 exchanges.
 
+## Support
+
+Need help with Bitcoin Ticker, or have a question, bug report, or feature request?
+
+- **Email:** [jtashiro@fiospace.com](mailto:jtashiro@fiospace.com)
+- **Privacy Policy:** https://gist.github.com/jtashiro/d86a9c07dc3b7c86abbbaa79bf835a04
+
+We typically respond within a few business days.
+
 ## What's included
 
 | File                  | Mirrors (Android)                          |
