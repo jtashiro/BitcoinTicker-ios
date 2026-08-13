@@ -2,6 +2,12 @@
 
 Copy each field into App Store Connect. Character limits noted in parentheses; drafts are within limits.
 
+## SKU (private, never shown to users)
+`BTCTICKER-IOS-20260812`
+
+## Bundle ID
+`com.fiospace.BitcoinTicker`
+
 ## App Name (30)
 `Bitcoin Ticker: Live Price`
 
