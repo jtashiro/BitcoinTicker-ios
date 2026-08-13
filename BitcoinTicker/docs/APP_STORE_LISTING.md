@@ -62,6 +62,7 @@ Disclaimer: Prices are provided by third-party exchanges for informational purpo
 - **4+** — no objectionable content. Answer "None" to all content questions; this is not a trading/gambling app.
 
 ## URLs
+- Privacy Policy URL (required): `https://gist.github.com/jtashiro/d86a9c07dc3b7c86abbbaa79bf835a04`
 - Support URL (required): a page where users can get help. Simplest option: `https://github.com/jtashiro/BitcoinTicker-ios` (make it public, or set up a simple support page/email page).
 - Marketing URL (optional): leave blank or same as above.
 
