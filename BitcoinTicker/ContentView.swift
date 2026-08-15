@@ -17,38 +17,50 @@ struct ContentView: View {
     private let priceTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                Text(priceText)
-                    .font(.system(size: 96, weight: .bold, design: .rounded))
-                    .foregroundColor(.orange)
-                    .minimumScaleFactor(0.4)
-                    .lineLimit(1)
+                ScrollView {
+                    VStack {
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Text(priceText)
+                                .font(.system(size: 96, weight: .bold, design: .rounded))
+                                .foregroundColor(.orange)
+                                .minimumScaleFactor(0.4)
+                                .lineLimit(1)
 
-                Text(sourceLabel)
-                    .font(.system(size: 18))
-                    .foregroundColor(.gray)
+                            Text(sourceLabel)
+                                .font(.system(size: 18))
+                                .foregroundColor(.gray)
 
-                VStack(spacing: 4) {
-                    Text(timeString)
-                        .font(.system(size: 32, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
+                            VStack(spacing: 4) {
+                                Text(timeString)
+                                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .minimumScaleFactor(0.5)
+                                    .lineLimit(1)
 
-                    Text(dateString)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.gray)
+                                Text(dateString)
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.top, 24)
+                        }
+                        .padding()
+                        Spacer()
+                    }
+                    .frame(minHeight: geo.size.height)
                 }
-                .padding(.top, 24)
+                .scrollBounceBehavior(.always)
+                .refreshable { await fetchPrice() }
             }
-            .padding()
         }
         .onReceive(clockTimer) { time in currentTime = time }
         .onReceive(priceTimer) { _ in Task { await fetchPrice() } }
         .task { await fetchPrice() }
+        .onChange(of: marketDataSourceRaw) { Task { await fetchPrice() } }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {

@@ -1,8 +1,7 @@
 import Foundation
 
-/// Mirrors the Android app's list of supported exchanges (BitcoinPriceWrapper.java).
 enum MarketDataSource: String, CaseIterable, Identifiable, Codable {
-    case binance, bitfinex, bitstamp, coinbase, coingecko, cryptocompare, gemini, kraken
+    case bitfinex, bitstamp, coinbase, coingecko, gemini, kraken
 
     var id: String { rawValue }
     var displayName: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
@@ -17,12 +16,10 @@ enum PriceService {
     /// Fetch the BTC/USD price from a single named exchange.
     static func fetchPrice(from source: MarketDataSource) async throws -> Double {
         switch source {
-        case .binance: return try await fetchBinance()
         case .bitfinex: return try await fetchBitfinex()
         case .bitstamp: return try await fetchBitstamp()
         case .coinbase: return try await fetchCoinbase()
         case .coingecko: return try await fetchCoingecko()
-        case .cryptocompare: return try await fetchCryptocompare()
         case .gemini: return try await fetchGemini()
         case .kraken: return try await fetchKraken()
         }
@@ -41,15 +38,6 @@ enum PriceService {
     }
 
     // MARK: - Individual exchange calls
-
-    private static func fetchBinance() async throws -> Double {
-        struct Response: Decodable { let price: String }
-        let url = URL(string: "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let decoded = try JSONDecoder().decode(Response.self, from: data)
-        guard let value = Double(decoded.price) else { throw PriceServiceError.decodingFailed }
-        return value
-    }
 
     private static func fetchBitfinex() async throws -> Double {
         let url = URL(string: "https://api-pub.bitfinex.com/v2/tickers?symbols=tBTCUSD")!
@@ -91,13 +79,6 @@ enum PriceService {
         let url = URL(string: "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")!
         let (data, _) = try await URLSession.shared.data(from: url)
         return try JSONDecoder().decode(Response.self, from: data).bitcoin.usd
-    }
-
-    private static func fetchCryptocompare() async throws -> Double {
-        struct Response: Decodable { let USD: Double }
-        let url = URL(string: "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD")!
-        let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode(Response.self, from: data).USD
     }
 
     private static func fetchGemini() async throws -> Double {
