@@ -5,6 +5,8 @@ import Combine
 struct ContentView: View {
     @AppStorage("marketDataSource") private var marketDataSourceRaw: String = MarketDataSource.coinbase.rawValue
     @AppStorage("btcPortfolio") private var btcPortfolioStr: String = ""
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.verticalSizeClass) private var vSizeClass
     @State private var currentTime = Date()
     @State private var priceInfo: PriceInfo?
     @State private var sparklineData: [Double] = []
@@ -13,6 +15,10 @@ struct ContentView: View {
 
     private var marketDataSource: MarketDataSource {
         MarketDataSource(rawValue: marketDataSourceRaw) ?? .coinbase
+    }
+
+    private var isIPad: Bool {
+        hSizeClass == .regular && vSizeClass == .regular
     }
 
     private let clockTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -57,25 +63,26 @@ struct ContentView: View {
 
     @ViewBuilder
     private func portraitLayout(geo: GeometryProxy) -> some View {
+        let pad = isIPad
         VStack(spacing: 0) {
             Spacer()
 
-            priceSection(compact: false)
-                .padding(.bottom, 20)
+            priceSection(compact: false, pad: pad)
+                .padding(.bottom, pad ? 40 : 20)
 
             sectionDivider
 
-            marketSection(compact: false)
-                .padding(.vertical, 18)
+            marketSection(compact: false, pad: pad)
+                .padding(.vertical, pad ? 36 : 18)
 
             sectionDivider
 
-            infoSection(compact: false)
-                .padding(.top, 18)
+            infoSection(compact: false, pad: pad)
+                .padding(.top, pad ? 36 : 18)
 
             Spacer()
         }
-        .padding(.horizontal, 28)
+        .padding(.horizontal, pad ? 72 : 28)
         .frame(minHeight: geo.size.height)
     }
 
@@ -83,11 +90,12 @@ struct ContentView: View {
 
     @ViewBuilder
     private func landscapeLayout(geo: GeometryProxy) -> some View {
-        HStack(alignment: .center, spacing: 28) {
-            VStack(spacing: 14) {
-                priceSection(compact: true)
+        let pad = isIPad
+        HStack(alignment: .center, spacing: pad ? 48 : 28) {
+            VStack(spacing: pad ? 20 : 14) {
+                priceSection(compact: true, pad: pad)
                 sectionDivider
-                marketSection(compact: true)
+                marketSection(compact: true, pad: pad)
             }
             .frame(maxWidth: .infinity)
 
@@ -96,34 +104,37 @@ struct ContentView: View {
                 .frame(width: 1)
                 .padding(.vertical, 12)
 
-            infoSection(compact: true)
+            infoSection(compact: true, pad: pad)
                 .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 12)
+        .padding(.horizontal, pad ? 48 : 24)
+        .padding(.vertical, pad ? 20 : 12)
         .frame(minHeight: geo.size.height)
     }
 
     // MARK: - Sections
 
     @ViewBuilder
-    private func priceSection(compact: Bool) -> some View {
-        VStack(spacing: compact ? 6 : 10) {
+    private func priceSection(compact: Bool, pad: Bool) -> some View {
+        VStack(spacing: compact ? 6 : (pad ? 16 : 10)) {
             Text("BTC / USD")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: pad ? 14 : 11, weight: .semibold, design: .monospaced))
                 .foregroundColor(.gray)
                 .kerning(2)
 
             if let price = priceInfo?.price {
                 Text(currencyString(price))
-                    .font(.system(size: compact ? 50 : 66, weight: .bold, design: .rounded))
+                    .font(.system(
+                        size: compact ? (pad ? 64 : 50) : (pad ? 96 : 66),
+                        weight: .bold, design: .rounded
+                    ))
                     .foregroundColor(.orange)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
             } else {
                 ProgressView()
                     .tint(.orange)
-                    .scaleEffect(1.4)
+                    .scaleEffect(pad ? 2.0 : 1.4)
                     .padding(.vertical, 12)
             }
 
@@ -134,15 +145,18 @@ struct ContentView: View {
                     Text("24h")
                         .foregroundColor(.gray)
                 }
-                .font(.system(size: compact ? 15 : 18, weight: .semibold, design: .rounded))
+                .font(.system(
+                    size: compact ? (pad ? 18 : 15) : (pad ? 26 : 18),
+                    weight: .semibold, design: .rounded
+                ))
                 .foregroundColor(change >= 0 ? .green : .red)
             }
         }
     }
 
     @ViewBuilder
-    private func marketSection(compact: Bool) -> some View {
-        VStack(spacing: compact ? 8 : 12) {
+    private func marketSection(compact: Bool, pad: Bool) -> some View {
+        VStack(spacing: compact ? 8 : (pad ? 20 : 12)) {
             if !sparklineData.isEmpty {
                 Chart(Array(sparklineData.enumerated()), id: \.offset) { index, price in
                     LineMark(
@@ -155,28 +169,34 @@ struct ContentView: View {
                 .chartXAxis(.hidden)
                 .chartYScale(domain: (sparklineData.min() ?? 0)...(sparklineData.max() ?? 1))
                 .foregroundStyle(sparklineColor)
-                .frame(height: compact ? 56 : 80)
+                .frame(height: compact ? (pad ? 90 : 56) : (pad ? 200 : 80))
             }
 
             if let high = priceInfo?.high24h, let low = priceInfo?.low24h {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("24H HIGH")
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .font(.system(size: pad ? 12 : 9, weight: .medium, design: .monospaced))
                             .foregroundColor(.gray)
                             .kerning(1)
                         Text(currencyString(high))
-                            .font(.system(size: compact ? 13 : 15, weight: .semibold, design: .rounded))
+                            .font(.system(
+                                size: compact ? (pad ? 17 : 13) : (pad ? 24 : 15),
+                                weight: .semibold, design: .rounded
+                            ))
                             .foregroundColor(.green.opacity(0.8))
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("24H LOW")
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .font(.system(size: pad ? 12 : 9, weight: .medium, design: .monospaced))
                             .foregroundColor(.gray)
                             .kerning(1)
                         Text(currencyString(low))
-                            .font(.system(size: compact ? 13 : 15, weight: .semibold, design: .rounded))
+                            .font(.system(
+                                size: compact ? (pad ? 17 : 13) : (pad ? 24 : 15),
+                                weight: .semibold, design: .rounded
+                            ))
                             .foregroundColor(.red.opacity(0.8))
                     }
                 }
@@ -185,20 +205,23 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func infoSection(compact: Bool) -> some View {
-        VStack(spacing: compact ? 10 : 14) {
+    private func infoSection(compact: Bool, pad: Bool) -> some View {
+        VStack(spacing: compact ? 10 : (pad ? 22 : 14)) {
             if let price = priceInfo?.price,
                let holdings = Double(btcPortfolioStr), holdings > 0 {
-                VStack(spacing: 3) {
+                VStack(spacing: pad ? 6 : 3) {
                     Text("\(btcHoldingsString(holdings)) BTC")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: pad ? 15 : 11, weight: .medium, design: .monospaced))
                         .foregroundColor(.gray)
                         .kerning(1)
                     Text(currencyString(holdings * price))
-                        .font(.system(size: compact ? 20 : 26, weight: .bold, design: .rounded))
+                        .font(.system(
+                            size: compact ? (pad ? 30 : 20) : (pad ? 48 : 26),
+                            weight: .bold, design: .rounded
+                        ))
                         .foregroundColor(.white)
                     Text("portfolio value")
-                        .font(.system(size: 10))
+                        .font(.system(size: pad ? 14 : 10))
                         .foregroundColor(.gray.opacity(0.6))
                 }
             }
@@ -208,9 +231,12 @@ struct ContentView: View {
                 Link(destination: url) {
                     HStack(spacing: 5) {
                         Image(systemName: "cube.fill")
-                            .font(.system(size: 11))
+                            .font(.system(size: pad ? 16 : 11))
                         Text(blockHeightString(height))
-                            .font(.system(size: compact ? 12 : 13, weight: .medium, design: .monospaced))
+                            .font(.system(
+                                size: compact ? (pad ? 16 : 12) : (pad ? 20 : 13),
+                                weight: .medium, design: .monospaced
+                            ))
                     }
                     .foregroundColor(.orange.opacity(0.65))
                 }
@@ -218,16 +244,22 @@ struct ContentView: View {
 
             if let source = priceInfo?.source {
                 Text(source.displayName)
-                    .font(.system(size: compact ? 12 : 13))
+                    .font(.system(size: compact ? (pad ? 16 : 12) : (pad ? 20 : 13)))
                     .foregroundColor(.gray.opacity(0.7))
             }
 
-            VStack(spacing: 2) {
+            VStack(spacing: pad ? 4 : 2) {
                 Text(timeString)
-                    .font(.system(size: compact ? 26 : 34, weight: .semibold, design: .rounded))
+                    .font(.system(
+                        size: compact ? (pad ? 40 : 26) : (pad ? 60 : 34),
+                        weight: .semibold, design: .rounded
+                    ))
                     .foregroundColor(.white)
                 Text(dateString)
-                    .font(.system(size: compact ? 13 : 15, weight: .medium))
+                    .font(.system(
+                        size: compact ? (pad ? 18 : 13) : (pad ? 24 : 15),
+                        weight: .medium
+                    ))
                     .foregroundColor(.gray)
             }
         }
