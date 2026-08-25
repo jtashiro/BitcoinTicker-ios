@@ -15,6 +15,19 @@ struct PriceInfo {
     let source: MarketDataSource
 }
 
+struct MarketStats {
+    let change24h: Double
+    let high24h: Double
+    let low24h: Double
+    let marketCap: Double
+    let volume24h: Double
+}
+
+struct FearAndGreed {
+    let value: Int           // 0–100
+    let classification: String
+}
+
 enum PriceServiceError: Error {
     case decodingFailed
 }
@@ -42,13 +55,14 @@ enum PriceService {
         return nil
     }
 
-    /// Returns 24h change %, high, and low from CoinGecko — used to fill gaps when the
-    /// selected exchange doesn't provide these fields (e.g. Coinbase, Gemini).
-    static func fetchMarketStats() async -> (change24h: Double, high24h: Double, low24h: Double)? {
+    /// CoinGecko market data: change %, high, low, market cap, 24h volume.
+    static func fetchMarketStats() async -> MarketStats? {
         struct Coin: Decodable {
             let price_change_percentage_24h: Double?
             let high_24h: Double?
             let low_24h: Double?
+            let market_cap: Double?
+            let total_volume: Double?
         }
         let url = URL(string: "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin")!
         guard let (data, _) = try? await URLSession.shared.data(from: url),
@@ -57,25 +71,48 @@ enum PriceService {
               let change = coin.price_change_percentage_24h,
               let high = coin.high_24h,
               let low = coin.low_24h else { return nil }
-        return (change, high, low)
+        return MarketStats(
+            change24h: change,
+            high24h: high,
+            low24h: low,
+            marketCap: coin.market_cap ?? 0,
+            volume24h: coin.total_volume ?? 0
+        )
     }
 
-    /// Returns the current Bitcoin block height from mempool.space.
+    /// Fear & Greed Index from alternative.me (0 = Extreme Fear, 100 = Extreme Greed).
+    static func fetchFearAndGreed() async -> FearAndGreed? {
+        struct Response: Decodable {
+            struct Entry: Decodable {
+                let value: String
+                let value_classification: String
+            }
+            let data: [Entry]
+        }
+        let url = URL(string: "https://api.alternative.me/fng/")!
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let decoded = try? JSONDecoder().decode(Response.self, from: data),
+              let entry = decoded.data.first,
+              let value = Int(entry.value) else { return nil }
+        return FearAndGreed(value: value, classification: entry.value_classification)
+    }
+
+    /// Price history for the sparkline. days=1 → 24H, days=7 → 7D, days=30 → 30D.
+    static func fetchSparklineData(days: Int = 1) async -> [Double] {
+        struct Response: Decodable { let prices: [[Double]] }
+        let url = URL(string: "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=\(days)")!
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let decoded = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
+        return decoded.prices.map { $0[1] }
+    }
+
+    /// Current Bitcoin block height from mempool.space.
     static func fetchBlockHeight() async -> Int? {
         let url = URL(string: "https://mempool.space/api/blocks/tip/height")!
         guard let (data, _) = try? await URLSession.shared.data(from: url),
               let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
               let height = Int(text) else { return nil }
         return height
-    }
-
-    /// Returns hourly closing prices for the last 24 hours, sourced from CoinGecko.
-    static func fetchSparklineData() async -> [Double] {
-        struct Response: Decodable { let prices: [[Double]] }
-        let url = URL(string: "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1")!
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
-              let decoded = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
-        return decoded.prices.map { $0[1] }
     }
 
     // MARK: - Individual exchange calls

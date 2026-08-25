@@ -11,6 +11,9 @@ struct ContentView: View {
     @State private var priceInfo: PriceInfo?
     @State private var sparklineData: [Double] = []
     @State private var blockHeight: Int?
+    @State private var marketStats: MarketStats?
+    @State private var fearAndGreed: FearAndGreed?
+    @State private var chartDays: Int = 1
     @State private var showSettings = false
 
     private var marketDataSource: MarketDataSource {
@@ -44,6 +47,7 @@ struct ContentView: View {
         .onReceive(priceTimer) { _ in Task { await refresh() } }
         .task { await refresh() }
         .onChange(of: marketDataSourceRaw) { Task { await refresh() } }
+        .onChange(of: chartDays) { Task { await refreshSparkline() } }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { showSettings = true } label: {
@@ -156,7 +160,16 @@ struct ContentView: View {
 
     @ViewBuilder
     private func marketSection(compact: Bool, pad: Bool) -> some View {
-        VStack(spacing: compact ? 8 : (pad ? 20 : 12)) {
+        VStack(spacing: compact ? 8 : (pad ? 20 : 14)) {
+            // Chart timeframe picker
+            Picker("Period", selection: $chartDays) {
+                Text("24H").tag(1)
+                Text("7D").tag(7)
+                Text("30D").tag(30)
+            }
+            .pickerStyle(.segmented)
+
+            // Sparkline
             if !sparklineData.isEmpty {
                 Chart(Array(sparklineData.enumerated()), id: \.offset) { index, price in
                     LineMark(
@@ -172,6 +185,7 @@ struct ContentView: View {
                 .frame(height: compact ? (pad ? 90 : 56) : (pad ? 200 : 80))
             }
 
+            // 24H HIGH / 24H LOW
             if let high = priceInfo?.high24h, let low = priceInfo?.low24h {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -198,6 +212,59 @@ struct ContentView: View {
                                 weight: .semibold, design: .rounded
                             ))
                             .foregroundColor(.red.opacity(0.8))
+                    }
+                }
+            }
+
+            // MKT CAP / 24H VOL — hidden on iPhone landscape to avoid crowding
+            if (!compact || pad), let stats = marketStats, stats.marketCap > 0 {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("MKT CAP")
+                            .font(.system(size: pad ? 12 : 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(.gray)
+                            .kerning(1)
+                        Text(abbreviatedValue(stats.marketCap))
+                            .font(.system(
+                                size: pad ? 24 : 15,
+                                weight: .semibold, design: .rounded
+                            ))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("24H VOL")
+                            .font(.system(size: pad ? 12 : 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(.gray)
+                            .kerning(1)
+                        Text(abbreviatedValue(stats.volume24h))
+                            .font(.system(
+                                size: pad ? 24 : 15,
+                                weight: .semibold, design: .rounded
+                            ))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+                }
+            }
+
+            // Fear & Greed — hidden on iPhone landscape
+            if (!compact || pad), let fng = fearAndGreed {
+                HStack {
+                    Text("FEAR & GREED")
+                        .font(.system(size: pad ? 12 : 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(.gray)
+                        .kerning(1)
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Text("\(fng.value)")
+                            .font(.system(
+                                size: pad ? 24 : 15,
+                                weight: .bold, design: .rounded
+                            ))
+                            .foregroundColor(fearGreedColor(fng.value))
+                        Text(fng.classification)
+                            .font(.system(size: pad ? 16 : 12, weight: .medium))
+                            .foregroundColor(fearGreedColor(fng.value).opacity(0.8))
                     }
                 }
             }
@@ -281,6 +348,25 @@ struct ContentView: View {
         return formatter.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
     }
 
+    private func abbreviatedValue(_ value: Double) -> String {
+        if value >= 1_000_000_000_000 {
+            return String(format: "$%.2fT", value / 1_000_000_000_000)
+        } else if value >= 1_000_000_000 {
+            return String(format: "$%.2fB", value / 1_000_000_000)
+        } else if value >= 1_000_000 {
+            return String(format: "$%.1fM", value / 1_000_000)
+        } else {
+            return currencyString(value)
+        }
+    }
+
+    private func fearGreedColor(_ value: Int) -> Color {
+        if value < 25 { return .red }
+        if value < 45 { return .orange }
+        if value < 55 { return .yellow }
+        return .green
+    }
+
     private var sparklineColor: Color {
         guard let change = priceInfo?.change24h else { return .orange }
         return change >= 0 ? .green : .red
@@ -300,11 +386,12 @@ struct ContentView: View {
     }
 
     private func refresh() async {
-        async let priceTask = PriceService.fetchPriceInfoWithFallback(preferred: marketDataSource)
-        async let sparkTask = PriceService.fetchSparklineData()
-        async let blockTask = PriceService.fetchBlockHeight()
-        async let statsTask = PriceService.fetchMarketStats()
-        let (newInfo, newSparkline, newHeight, stats) = await (priceTask, sparkTask, blockTask, statsTask)
+        async let priceTask  = PriceService.fetchPriceInfoWithFallback(preferred: marketDataSource)
+        async let sparkTask  = PriceService.fetchSparklineData(days: chartDays)
+        async let blockTask  = PriceService.fetchBlockHeight()
+        async let statsTask  = PriceService.fetchMarketStats()
+        async let fngTask    = PriceService.fetchFearAndGreed()
+        let (newInfo, newSparkline, newHeight, stats, fng) = await (priceTask, sparkTask, blockTask, statsTask, fngTask)
         if let info = newInfo {
             priceInfo = PriceInfo(
                 price: info.price,
@@ -316,6 +403,13 @@ struct ContentView: View {
         }
         if !newSparkline.isEmpty { sparklineData = newSparkline }
         if let h = newHeight { blockHeight = h }
+        if let s = stats { marketStats = s }
+        if let f = fng { fearAndGreed = f }
+    }
+
+    private func refreshSparkline() async {
+        let data = await PriceService.fetchSparklineData(days: chartDays)
+        if !data.isEmpty { sparklineData = data }
     }
 
     private var timeString: String {
