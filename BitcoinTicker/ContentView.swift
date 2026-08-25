@@ -274,17 +274,17 @@ struct ContentView: View {
                let holdings = Double(btcPortfolioStr), holdings > 0 {
                 VStack(spacing: pad ? 6 : 3) {
                     Text("\(btcHoldingsString(holdings)) BTC")
-                        .font(.system(size: pad ? 15 : 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: pad ? 15 : 13, weight: .medium, design: .monospaced))
                         .foregroundColor(.gray)
                         .kerning(1)
                     Text(currencyString(holdings * price))
                         .font(.system(
-                            size: compact ? (pad ? 30 : 20) : (pad ? 48 : 26),
+                            size: compact ? (pad ? 30 : 22) : (pad ? 48 : 32),
                             weight: .bold, design: .rounded
                         ))
                         .foregroundColor(.white)
                     Text("portfolio value")
-                        .font(.system(size: pad ? 14 : 10))
+                        .font(.system(size: pad ? 14 : 12))
                         .foregroundColor(.gray.opacity(0.6))
                 }
             }
@@ -306,10 +306,10 @@ struct ContentView: View {
                     Link(destination: URL(string: "https://mempool.space/halving")!) {
                         Text(halvingSubtitle(height))
                             .font(.system(
-                                size: compact ? (pad ? 12 : 9) : (pad ? 15 : 10),
+                                size: compact ? (pad ? 12 : 11) : (pad ? 15 : 13),
                                 design: .monospaced
                             ))
-                            .foregroundColor(.gray.opacity(0.45))
+                            .foregroundColor(.gray.opacity(0.5))
                     }
                 }
             }
