@@ -10,6 +10,8 @@ struct ContentView: View {
     @State private var currentTime = Date()
     @State private var priceInfo: PriceInfo?
     @State private var sparklineData: [Double] = []
+    @State private var sparklineMin: Double = 0
+    @State private var sparklineMax: Double = 1
     @State private var blockHeight: Int?
     @State private var marketStats: MarketStats?
     @State private var fearAndGreed: FearAndGreed?
@@ -176,11 +178,11 @@ struct ContentView: View {
                         x: .value("Time", index),
                         y: .value("Price", price)
                     )
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.linear)
                 }
                 .chartYAxis(.hidden)
                 .chartXAxis(.hidden)
-                .chartYScale(domain: (sparklineData.min() ?? 0)...(sparklineData.max() ?? 1))
+                .chartYScale(domain: sparklineMin...sparklineMax)
                 .foregroundStyle(sparklineColor)
                 .frame(height: compact ? (pad ? 90 : 56) : (pad ? 200 : 80))
             }
@@ -408,6 +410,21 @@ struct ContentView: View {
         return "\(remainingStr) to halving · ~\(dateFmt.string(from: estimatedDate))"
     }
 
+    // Downsample to at most maxPoints evenly-spaced values so the chart renders fast.
+    private func applySparkline(_ raw: [Double], maxPoints: Int = 150) {
+        guard !raw.isEmpty else { return }
+        let sampled: [Double]
+        if raw.count <= maxPoints {
+            sampled = raw
+        } else {
+            let step = Double(raw.count - 1) / Double(maxPoints - 1)
+            sampled = (0..<maxPoints).map { raw[Int(Double($0) * step)] }
+        }
+        sparklineData = sampled
+        sparklineMin = sampled.min() ?? 0
+        sparklineMax = sampled.max() ?? 1
+    }
+
     private func refresh() async {
         // CoinGecko data is slow — fire and forget so fast exchange price shows immediately
         Task {
@@ -415,7 +432,7 @@ struct ContentView: View {
         }
         Task {
             let data = await PriceService.fetchSparklineData(days: chartDays)
-            if !data.isEmpty { sparklineData = data }
+            applySparkline(data)
         }
         Task {
             if let fng = await PriceService.fetchFearAndGreed() { fearAndGreed = fng }
@@ -431,7 +448,7 @@ struct ContentView: View {
 
     private func refreshSparkline() async {
         let data = await PriceService.fetchSparklineData(days: chartDays)
-        if !data.isEmpty { sparklineData = data }
+        applySparkline(data)
     }
 
     // Merge exchange data with CoinGecko fallback at the display layer
