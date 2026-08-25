@@ -293,19 +293,28 @@ struct ContentView: View {
                 }
             }
 
-            if let height = blockHeight,
-               let url = URL(string: "https://mempool.space/block-height/\(height)") {
-                Link(destination: url) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "cube.fill")
-                            .font(.system(size: pad ? 16 : 11))
-                        Text(blockHeightString(height))
-                            .font(.system(
-                                size: compact ? (pad ? 16 : 12) : (pad ? 20 : 13),
-                                weight: .medium, design: .monospaced
-                            ))
+            if let height = blockHeight {
+                VStack(spacing: 3) {
+                    Link(destination: URL(string: "https://mempool.space/block-height/\(height)")!) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "cube.fill")
+                                .font(.system(size: pad ? 16 : 11))
+                            Text(blockHeightString(height))
+                                .font(.system(
+                                    size: compact ? (pad ? 16 : 12) : (pad ? 20 : 13),
+                                    weight: .medium, design: .monospaced
+                                ))
+                        }
+                        .foregroundColor(.orange.opacity(0.65))
                     }
-                    .foregroundColor(.orange.opacity(0.65))
+                    Link(destination: URL(string: "https://mempool.space/halving")!) {
+                        Text(halvingSubtitle(height))
+                            .font(.system(
+                                size: compact ? (pad ? 12 : 9) : (pad ? 15 : 10),
+                                design: .monospaced
+                            ))
+                            .foregroundColor(.gray.opacity(0.45))
+                    }
                 }
             }
 
@@ -383,6 +392,20 @@ struct ContentView: View {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         return (formatter.string(from: NSNumber(value: height)) ?? "\(height)") + " blocks"
+    }
+
+    private func halvingSubtitle(_ height: Int) -> String {
+        let halvingInterval = 210_000
+        let nextHalving = ((height / halvingInterval) + 1) * halvingInterval
+        let remaining = nextHalving - height
+        let fmt = NumberFormatter()
+        fmt.numberStyle = .decimal
+        let remainingStr = fmt.string(from: NSNumber(value: remaining)) ?? "\(remaining)"
+        let secondsRemaining = Double(remaining) * 10.0 * 60.0
+        let estimatedDate = Date().addingTimeInterval(secondsRemaining)
+        let dateFmt = DateFormatter()
+        dateFmt.dateFormat = "MMM yyyy"
+        return "\(remainingStr) to halving · ~\(dateFmt.string(from: estimatedDate))"
     }
 
     private func refresh() async {
