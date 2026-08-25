@@ -142,7 +142,7 @@ struct ContentView: View {
                     .padding(.vertical, 12)
             }
 
-            if let change = priceInfo?.change24h {
+            if let change = displayChange {
                 HStack(spacing: 4) {
                     Image(systemName: change >= 0 ? "arrow.up" : "arrow.down")
                     Text(String(format: "%.2f%%", abs(change)))
@@ -186,7 +186,7 @@ struct ContentView: View {
             }
 
             // 24H HIGH / 24H LOW
-            if let high = priceInfo?.high24h, let low = priceInfo?.low24h {
+            if let high = displayHigh, let low = displayLow {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("24H HIGH")
@@ -368,7 +368,7 @@ struct ContentView: View {
     }
 
     private var sparklineColor: Color {
-        guard let change = priceInfo?.change24h else { return .orange }
+        guard let change = displayChange else { return .orange }
         return change >= 0 ? .green : .red
     }
 
@@ -386,31 +386,35 @@ struct ContentView: View {
     }
 
     private func refresh() async {
-        async let priceTask  = PriceService.fetchPriceInfoWithFallback(preferred: marketDataSource)
-        async let sparkTask  = PriceService.fetchSparklineData(days: chartDays)
-        async let blockTask  = PriceService.fetchBlockHeight()
-        async let statsTask  = PriceService.fetchMarketStats()
-        async let fngTask    = PriceService.fetchFearAndGreed()
-        let (newInfo, newSparkline, newHeight, stats, fng) = await (priceTask, sparkTask, blockTask, statsTask, fngTask)
-        if let info = newInfo {
-            priceInfo = PriceInfo(
-                price: info.price,
-                change24h: info.change24h ?? stats?.change24h,
-                high24h: info.high24h ?? stats?.high24h,
-                low24h: info.low24h ?? stats?.low24h,
-                source: info.source
-            )
+        // CoinGecko data is slow — fire and forget so fast exchange price shows immediately
+        Task {
+            if let stats = await PriceService.fetchMarketStats() { marketStats = stats }
         }
-        if !newSparkline.isEmpty { sparklineData = newSparkline }
+        Task {
+            let data = await PriceService.fetchSparklineData(days: chartDays)
+            if !data.isEmpty { sparklineData = data }
+        }
+        Task {
+            if let fng = await PriceService.fetchFearAndGreed() { fearAndGreed = fng }
+        }
+
+        // Fast path: exchange price + block height update the UI right away
+        async let priceTask = PriceService.fetchPriceInfoWithFallback(preferred: marketDataSource)
+        async let blockTask = PriceService.fetchBlockHeight()
+        let (newInfo, newHeight) = await (priceTask, blockTask)
+        if let info = newInfo { priceInfo = info }
         if let h = newHeight { blockHeight = h }
-        if let s = stats { marketStats = s }
-        if let f = fng { fearAndGreed = f }
     }
 
     private func refreshSparkline() async {
         let data = await PriceService.fetchSparklineData(days: chartDays)
         if !data.isEmpty { sparklineData = data }
     }
+
+    // Merge exchange data with CoinGecko fallback at the display layer
+    private var displayChange: Double? { priceInfo?.change24h ?? marketStats?.change24h }
+    private var displayHigh: Double?   { priceInfo?.high24h   ?? marketStats?.high24h   }
+    private var displayLow: Double?    { priceInfo?.low24h    ?? marketStats?.low24h    }
 
     private var timeString: String {
         let formatter = DateFormatter()
