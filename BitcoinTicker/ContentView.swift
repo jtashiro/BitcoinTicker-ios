@@ -171,20 +171,15 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
 
-            // Sparkline
+            // Sparkline — isolated struct so the 1s clock timer can't trigger chart layout
             if !sparklineData.isEmpty {
-                Chart(Array(sparklineData.enumerated()), id: \.offset) { index, price in
-                    LineMark(
-                        x: .value("Time", index),
-                        y: .value("Price", price)
-                    )
-                    .interpolationMethod(.linear)
-                }
-                .chartYAxis(.hidden)
-                .chartXAxis(.hidden)
-                .chartYScale(domain: sparklineMin...sparklineMax)
-                .foregroundStyle(sparklineColor)
-                .frame(height: compact ? (pad ? 90 : 56) : (pad ? 200 : 80))
+                SparklineChart(
+                    data: sparklineData,
+                    minY: sparklineMin,
+                    maxY: sparklineMax,
+                    color: sparklineColor,
+                    height: compact ? (pad ? 90 : 56) : (pad ? 200 : 80)
+                )
             }
 
             // 24H HIGH / 24H LOW
@@ -420,9 +415,13 @@ struct ContentView: View {
             let step = Double(raw.count - 1) / Double(maxPoints - 1)
             sampled = (0..<maxPoints).map { raw[Int(Double($0) * step)] }
         }
-        sparklineData = sampled
-        sparklineMin = sampled.min() ?? 0
-        sparklineMax = sampled.max() ?? 1
+        var tx = Transaction(animation: nil)
+        tx.disablesAnimations = true
+        withTransaction(tx) {
+            sparklineData = sampled
+            sparklineMin = sampled.min() ?? 0
+            sparklineMax = sampled.max() ?? 1
+        }
     }
 
     private func refresh() async {
@@ -466,6 +465,40 @@ struct ContentView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE, MMM d"
         return formatter.string(from: currentTime)
+    }
+}
+
+// Isolated struct so SwiftUI only re-renders the chart when its own inputs change.
+// Without this, the 1-second clock timer in ContentView causes chart layout on every tick.
+private struct SparklineChart: View, Equatable {
+    let data: [Double]
+    let minY: Double
+    let maxY: Double
+    let color: Color
+    let height: CGFloat
+
+    static func == (lhs: SparklineChart, rhs: SparklineChart) -> Bool {
+        lhs.data == rhs.data &&
+        lhs.minY == rhs.minY &&
+        lhs.maxY == rhs.maxY &&
+        lhs.color == rhs.color &&
+        lhs.height == rhs.height
+    }
+
+    var body: some View {
+        Chart(Array(data.enumerated()), id: \.offset) { index, price in
+            LineMark(
+                x: .value("Time", index),
+                y: .value("Price", price)
+            )
+            .interpolationMethod(.linear)
+        }
+        .chartYAxis(.hidden)
+        .chartXAxis(.hidden)
+        .chartYScale(domain: minY...maxY)
+        .foregroundStyle(color)
+        .frame(height: height)
+        .animation(.none, value: data)
     }
 }
 
