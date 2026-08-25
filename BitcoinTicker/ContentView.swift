@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 import Combine
 
 struct ContentView: View {
@@ -468,37 +467,41 @@ struct ContentView: View {
     }
 }
 
-// Isolated struct so SwiftUI only re-renders the chart when its own inputs change.
-// Without this, the 1-second clock timer in ContentView causes chart layout on every tick.
-private struct SparklineChart: View, Equatable {
+// Custom Shape sparkline — direct Path rendering is orders of magnitude faster than
+// SwiftUI Charts for a simple line since it skips the full chart layout engine.
+private struct SparklineChart: View {
     let data: [Double]
     let minY: Double
     let maxY: Double
     let color: Color
     let height: CGFloat
 
-    static func == (lhs: SparklineChart, rhs: SparklineChart) -> Bool {
-        lhs.data == rhs.data &&
-        lhs.minY == rhs.minY &&
-        lhs.maxY == rhs.maxY &&
-        lhs.color == rhs.color &&
-        lhs.height == rhs.height
-    }
-
     var body: some View {
-        Chart(Array(data.enumerated()), id: \.offset) { index, price in
-            LineMark(
-                x: .value("Time", index),
-                y: .value("Price", price)
-            )
-            .interpolationMethod(.linear)
+        SparklinePath(data: data, minY: minY, maxY: maxY)
+            .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            .frame(height: height)
+            .drawingGroup()  // rasterize on a Metal layer — fast subsequent redraws
+    }
+}
+
+private struct SparklinePath: Shape {
+    let data: [Double]
+    let minY: Double
+    let maxY: Double
+
+    // No animatableData — path snaps instantly without any implicit animation
+    func path(in rect: CGRect) -> Path {
+        guard data.count > 1, maxY > minY else { return Path() }
+        var path = Path()
+        let xStep  = rect.width  / CGFloat(data.count - 1)
+        let yRange = CGFloat(maxY - minY)
+        for (i, value) in data.enumerated() {
+            let x = CGFloat(i) * xStep
+            let y = rect.height - (CGFloat(value - minY) / yRange) * rect.height
+            if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
+            else       { path.addLine(to: CGPoint(x: x, y: y)) }
         }
-        .chartYAxis(.hidden)
-        .chartXAxis(.hidden)
-        .chartYScale(domain: minY...maxY)
-        .foregroundStyle(color)
-        .frame(height: height)
-        .animation(.none, value: data)
+        return path
     }
 }
 
